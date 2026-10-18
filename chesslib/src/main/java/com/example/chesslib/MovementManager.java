@@ -107,17 +107,17 @@ public class MovementManager {
                 case 4 -> curentBoard = Board.whiteQueen ;
                 case 5 -> curentBoard = Board.whiteKnights ;
                 case 6 -> {
-                    if (!WhiteKingHasBeenChecked && !WhiteKingHasBeenMoved){
-                        if (arayPos == 1&& !WhiteRightRookHasBeenMoved){
-                            Board.whiteRoocks ^= (1L) ;
-
-                            Board.whiteRoocks ^= (1L << 2) ;
-                        }
-                        if (arayPos == 5 && !WhiteLeftRookHasBeenMoved){
-                            Board.whiteRoocks ^= (1L << 7) ;
-
-                            Board.whiteRoocks ^= (1L << 4) ;
-                        }
+                    // Castling = the only king move of 2 squares. The move generator only offers it
+                    // when it is legal, so here we just move the rook too.
+                    if (pieceMovedPos == 3 && arayPos == 1 && (Board.whiteRoocks & 1L) != 0) {          // O-O: rook h1 -> f1
+                        Board.whiteRoocks &= ~1L;
+                        Board.whiteRoocks |= (1L << 2);
+                        WhiteRightRookHasBeenMoved = true;
+                    }
+                    if (pieceMovedPos == 3 && arayPos == 5 && (Board.whiteRoocks & (1L << 7)) != 0) {   // O-O-O: rook a1 -> d1
+                        Board.whiteRoocks &= ~(1L << 7);
+                        Board.whiteRoocks |= (1L << 4);
+                        WhiteLeftRookHasBeenMoved = true;
                     }
                     whiteKingPos = arayPos;
                     WhiteKingHasBeenMoved = true;
@@ -141,17 +141,15 @@ public class MovementManager {
                 case 10 -> curentBoard = Board.blackQueen ;
                 case 11 -> curentBoard = Board.blackKnights ;
                 case 12 -> {
-                    if (!blackKingHasBeenChecked && !blackKingHasBeenMoved){
-                        if (arayPos == 61 && !BlackLeftRookHasBeenMoved){
-                            Board.blackRoocks ^= (1L << 63) ;
-
-                            Board.blackRoocks ^= (1L << 60) ;
-                        }
-                        if (arayPos == 57 && !BlackRightRookHasBeenMoved){
-                            Board.blackRoocks ^= (1L << 56) ;
-
-                            Board.blackRoocks ^= (1L << 58) ;
-                        }
+                    if (pieceMovedPos == 59 && arayPos == 57 && (Board.blackRoocks & (1L << 56)) != 0) {  // O-O: rook h8 -> f8
+                        Board.blackRoocks &= ~(1L << 56);
+                        Board.blackRoocks |= (1L << 58);
+                        BlackRightRookHasBeenMoved = true;
+                    }
+                    if (pieceMovedPos == 59 && arayPos == 61 && (Board.blackRoocks & (1L << 63)) != 0) {  // O-O-O: rook a8 -> d8
+                        Board.blackRoocks &= ~(1L << 63);
+                        Board.blackRoocks |= (1L << 60);
+                        BlackLeftRookHasBeenMoved = true;
                     }
                     blackKingHasBeenMoved = true;
                     blackKingPos = arayPos;
@@ -167,6 +165,12 @@ public class MovementManager {
             count++;
         }
         
+
+        // A rook captured on its starting corner can no longer castle.
+        if (arayPos == 0)  WhiteRightRookHasBeenMoved = true;
+        if (arayPos == 7)  WhiteLeftRookHasBeenMoved = true;
+        if (arayPos == 56) BlackRightRookHasBeenMoved = true;
+        if (arayPos == 63) BlackLeftRookHasBeenMoved = true;
 
         if (((Board.captureSquares >>> arayPos) & 1L) != 0) {
             pieceCapuredSquare =arayPos;
@@ -219,6 +223,15 @@ public class MovementManager {
             case 12 -> Board.blackKing =curentBoard  ;
             default -> { }
         }
+        finishMove(arayPos);
+    }
+    
+
+    /**
+     * Second half of a move: refresh boards, detect check / mate / stalemate / 50-move,
+     * switch the side to move. Shared by normal moves and human promotions.
+     */
+    private void finishMove(int arayPos) {
         Board.atackSquares = 0;
         Board.captureSquares = 0;
 
@@ -301,7 +314,11 @@ public class MovementManager {
 
         
     }
-    
+
+    public boolean isPromotionPending() {
+        return whitePromotionUI || blackPromotionUI;
+    }
+
     //white pieces movement 
 
     public void WPMouvement(int arayPos) {
@@ -880,150 +897,89 @@ public class MovementManager {
 
     // human promotion helper + Castling
 
+    /** Human chose a piece for a black pawn waiting on the 1st rank. 1=knight 2=rook 3=queen 4=bishop. */
     public  void blackPromotion(int arayPos) {
-        Board.blackPawns ^= (1L << arayPos);
-
+        if (!blackPromotionUI) {
+            return;
+        }
+        long bit = 1L << arayPos;
+        Board.blackPawns &= ~bit;
         switch (promotionPiece) {
-            case 1 -> Board.blackKnights ^= (1L << arayPos);
-            case 2 -> Board.blackRoocks ^= (1L << arayPos);
-            case 3 -> Board.blackQueen ^= (1L << arayPos);
-            case 4 -> Board.blackBishops ^= (1L << arayPos);
-            default -> Board.blackBishops ^= (1L << arayPos);
+            case 1 -> Board.blackKnights |= bit;
+            case 2 -> Board.blackRoocks |= bit;
+            case 4 -> Board.blackBishops |= bit;
+            default -> Board.blackQueen |= bit;   // queen is the safe default
         }
         blackPromotionUI = false;
-
         promotionPiece = 0;
-
-        Board.atackSquares = 0;
-        Board.captureSquares = 0;
-
-        Board.checkSquares = 0;
-        updateWhiteBoard();
-        updateBlackBoard();
-
-        if (turn == true){
-            checkBlackCheck(blackKingPos);
-            
-            if (blackIsInCheck){
-
-                blackKingHasBeenChecked = true;
-            }
-            WhiteAtackSquares();
-            
-        }else{
-            checkWhiteCheck(whiteKingPos);
-            if (whiteIsInCheck){
-                WhiteKingHasBeenChecked = true;
-            }
-            BlackAtackSquares();
-            
-        }
-
-
-        if (count >= 50){
-            gameFinished = true;
-        }
-
-        if (whiteIsInCheck && checkWhiteMateCheck()){
-            gameFinished = true;
-        }
-        if (blackIsInCheck && checkBlackMateCheck()){
-            gameFinished = true;
-        }
-
-        turn = !turn ;
-
-        
-        
-        Board.atackSquares = 0;
-        Board.captureSquares = 0;
-        pieceMoved = 0;
-        pieceMovedPos = 0;
-
-        
+        finishMove(arayPos);
     }
 
+    /** Human chose a piece for a white pawn waiting on the 8th rank. 1=knight 2=rook 3=queen 4=bishop. */
     public  void whitePromotion(int arayPos) {
-        Board.whitePawns ^= (1L << arayPos);
-
+        if (!whitePromotionUI) {
+            return;
+        }
+        long bit = 1L << arayPos;
+        Board.whitePawns &= ~bit;
         switch (promotionPiece) {
-            case 1 -> Board.whiteKnights ^= (1L << arayPos);
-            case 2 -> Board.whiteRoocks ^= (1L << arayPos);
-            case 3 -> Board.whiteQueen ^= (1L << arayPos);
-            case 4 -> Board.whiteBishops ^= (1L << arayPos);
-            default -> Board.whiteBishops ^= (1L << arayPos);
+            case 1 -> Board.whiteKnights |= bit;
+            case 2 -> Board.whiteRoocks |= bit;
+            case 4 -> Board.whiteBishops |= bit;
+            default -> Board.whiteQueen |= bit;   // queen is the safe default
         }
-
-        promotionPiece = 0;
         whitePromotionUI = false;
-
-        Board.atackSquares = 0;
-        Board.captureSquares = 0;
-
-        Board.checkSquares = 0;
-        updateWhiteBoard();
-        updateBlackBoard();
-
-        if (turn == true){
-            checkBlackCheck(blackKingPos);
-            
-            if (blackIsInCheck){
-                blackKingHasBeenChecked = true;
-            }
-            WhiteAtackSquares();
-            
-        }else{
-            checkWhiteCheck(whiteKingPos);
-            if (whiteIsInCheck){
-                WhiteKingHasBeenChecked = true;
-            }
-            BlackAtackSquares();
-            
-        }
-
-
-        if (count >= 50){
-            gameFinished = true;
-        }
-
-        if (whiteIsInCheck && checkWhiteMateCheck()){
-            gameFinished = true;
-        }
-        if (blackIsInCheck && checkBlackMateCheck()){
-            gameFinished = true;
-        }
-
-        turn = !turn ;
-
-        
-        
-        Board.atackSquares = 0;
-        Board.captureSquares = 0;
-        pieceMoved = 0;
-        pieceMovedPos = 0;
-
-        
+        promotionPiece = 0;
+        finishMove(arayPos);
     }
 
 
+    /*
+     * Castling rules (bit 0 = h1, bit 3 = e1, bit 7 = a1, bit 56 = h8, bit 59 = e8, bit 63 = a8):
+     *  - king and that rook have never moved (a captured rook also loses the right),
+     *  - every square between them is empty,
+     *  - the king is NOT in check now, and does not pass through or land on an attacked square.
+     *  Having been in check earlier in the game does NOT matter.
+     * Must be called right after WKMovement/BKMovement computed the enemy attack map.
+     */
     public  void checkWhiteCastling(){
-        long right = 6L;
-        if ((Board.whiteRoocks & 1L ) != 0 && !checkIfSquareisUsed(1) && !checkIfSquareisUsed(2) && !WhiteRightRookHasBeenMoved && (right & Board.allAtackSquares)==0L) {
+        if (WhiteKingHasBeenMoved || Board.whiteKing != (1L << 3)) return;
+        long enemy = Board.BlackAtackSquares;
+        if ((enemy & (1L << 3)) != 0) return;                              // in check: no castling
+
+        // O-O: f1(2), g1(1) empty and not attacked, rook on h1(0)
+        long kingSidePath = (1L << 1) | (1L << 2);
+        if (!WhiteRightRookHasBeenMoved && (Board.whiteRoocks & 1L) != 0
+                && (Board.board & kingSidePath) == 0 && (enemy & kingSidePath) == 0) {
             Board.atackSquares |= (1L << 1);
         }
-        long left = 112L;
-        if (((Board.whiteRoocks >>> 7) & 1L) != 0 && !checkIfSquareisUsed(6) && !checkIfSquareisUsed(5) && !checkIfSquareisUsed(4) && !WhiteLeftRookHasBeenMoved && (left & Board.BlackAtackSquares)==0L) {
+
+        // O-O-O: d1(4), c1(5), b1(6) empty; d1 and c1 not attacked (b1 may be); rook on a1(7)
+        long queenSideEmpty = (1L << 4) | (1L << 5) | (1L << 6);
+        long queenSideSafe = (1L << 4) | (1L << 5);
+        if (!WhiteLeftRookHasBeenMoved && (Board.whiteRoocks & (1L << 7)) != 0
+                && (Board.board & queenSideEmpty) == 0 && (enemy & queenSideSafe) == 0) {
             Board.atackSquares |= (1L << 5);
         }
     }
-     
-    public  void checkBlackCastling(){      
-        long left = (1L << 58) | (1L << 57);
-        if (((Board.blackRoocks >>> 56) & 1L) != 0 && !checkIfSquareisUsed(57) && !checkIfSquareisUsed(58)&& !BlackLeftRookHasBeenMoved && (left & Board.allAtackSquares)==0L ) {
+
+    public  void checkBlackCastling(){
+        if (blackKingHasBeenMoved || Board.blackKing != (1L << 59)) return;
+        long enemy = Board.whiteAtackSquares;
+        if ((enemy & (1L << 59)) != 0) return;                             // in check: no castling
+
+        // O-O: f8(58), g8(57) empty and not attacked, rook on h8(56)
+        long kingSidePath = (1L << 57) | (1L << 58);
+        if (!BlackRightRookHasBeenMoved && (Board.blackRoocks & (1L << 56)) != 0
+                && (Board.board & kingSidePath) == 0 && (enemy & kingSidePath) == 0) {
             Board.atackSquares |= (1L << 57);
         }
-        long right = (1L << 62) | (1L << 61) | (1L << 60);
-        if (((Board.blackRoocks >>> 63) & 1L) != 0 && !checkIfSquareisUsed(62) && !checkIfSquareisUsed(61) && !checkIfSquareisUsed(60) && !BlackRightRookHasBeenMoved && (right & Board.whiteAtackSquares)==0L) {
+
+        // O-O-O: d8(60), c8(61), b8(62) empty; d8 and c8 not attacked; rook on a8(63)
+        long queenSideEmpty = (1L << 60) | (1L << 61) | (1L << 62);
+        long queenSideSafe = (1L << 60) | (1L << 61);
+        if (!BlackLeftRookHasBeenMoved && (Board.blackRoocks & (1L << 63)) != 0
+                && (Board.board & queenSideEmpty) == 0 && (enemy & queenSideSafe) == 0) {
             Board.atackSquares |= (1L << 61);
         }
     }
@@ -1150,7 +1106,9 @@ public class MovementManager {
     public void resetGame() {
         Board.resetToStandard();
 
-        if (randomStartingColor) {
+        // Only meaningful in human-vs-AI games: randomly choose which side the human plays.
+        // Human-vs-human and AI-vs-AI keep the players exactly as chosen.
+        if (randomStartingColor && whiteAi != BlackAi) {
             boolean playerIsWhite = Math.random() < 0.5;
             whiteAi = !playerIsWhite;
             BlackAi = playerIsWhite;

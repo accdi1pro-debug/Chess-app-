@@ -63,7 +63,27 @@ public class MagicBitBoards {
 
 
     // 2. INITIALIZATION METHOD WITH RUNTIME MAGIC GENERATOR
+    private static volatile boolean initialized = false;
+
+    /** Builds all attack tables. Safe to call many times: the work is only done once. */
     public static void init() {
+        if (initialized) {
+            return;
+        }
+        synchronized (MagicBitBoards.class) {
+            if (initialized) {
+                return;
+            }
+            buildTables();
+            initialized = true;
+        }
+    }
+
+    public static boolean isInitialized() {
+        return initialized;
+    }
+
+    private static void buildTables() {
         for (int sq = 0; sq < 64; sq++) {
             RookMasks[sq] = generateRookMask(sq);
             BishopMasks[sq] = generateBishopMask(sq);

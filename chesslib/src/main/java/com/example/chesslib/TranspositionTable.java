@@ -80,5 +80,6 @@ public final class TranspositionTable {
         java.util.Arrays.fill(scores, 0);
         java.util.Arrays.fill(depths, (byte) 0);
         java.util.Arrays.fill(flags, (byte) 0);
+        java.util.Arrays.fill(moves, null);
     }
 }

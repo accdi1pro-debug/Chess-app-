@@ -111,7 +111,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="AI Search Time (Difficulty):"
+                android:text="AI Search Time (applies from the AI\'s next move):"
                 android:textColor="#E0E0E0"
                 android:textSize="14sp"
                 android:layout_marginBottom="6dp" />
@@ -219,64 +219,12 @@
             </com.google.android.material.button.MaterialButtonToggleGroup>
         </LinearLayout>
 
-        <!-- Light / Dark Mode Theme -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginBottom="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="App Theme (Light / Dark Mode):"
-                android:textColor="#E0E0E0"
-                android:textSize="14sp"
-                android:layout_marginBottom="6dp" />
-
-            <com.google.android.material.button.MaterialButtonToggleGroup
-                android:id="@+id/tgThemeDialog"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:singleSelection="true"
-                app:selectionRequired="true">
-
-                <Button
-                    android:id="@+id/btnThemeSystem"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="System"
-                    android:textSize="11sp" />
-
-                <Button
-                    android:id="@+id/btnThemeLight"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Light"
-                    android:textSize="11sp" />
-
-                <Button
-                    android:id="@+id/btnThemeDark"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Dark"
-                    android:textSize="11sp" />
-
-            </com.google.android.material.button.MaterialButtonToggleGroup>
-        </LinearLayout>
-
         <!-- Random Color Switch -->
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switchRandomColorDialog"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Random Starting Color (Play as White or Black)"
+            android:text="Random Starting Color (Human vs AI only)"
             android:textColor="#E0E0E0"
             android:checked="false"
             android:layout_marginBottom="8dp" />

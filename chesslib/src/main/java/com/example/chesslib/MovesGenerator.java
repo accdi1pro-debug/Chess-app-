@@ -5,13 +5,40 @@ import java.util.List;
 
 public class MovesGenerator {
 
-    public static long TIME_LIMIT_MS = 4000;
+    public static volatile long TIME_LIMIT_MS = 4000;
     public static volatile boolean isSearching = false;
     private static final int MAX_DEPTH = 30;
     private static long deadline;
     private static volatile boolean stopRequested = false;
     private static long nodes;
-    public static int lastCompletedDepth = 0;
+    public static volatile int lastCompletedDepth = 0;
+    /** Score (white's point of view, centipawns) of the last fully completed iteration. */
+    public static volatile int lastBestScore = 0;
+
+    /** Everything the app needs to know about a finished search. */
+    public record SearchResult(Move move, int score, int depth, long nodes) { }
+
+    /** Clears everything learned during the previous game (transposition table, killers, history). */
+    public static void newGame() {
+        TranspositionTable.clear();
+        for (Move[] k : killerMoves) {
+            java.util.Arrays.fill(k, null);
+        }
+        for (int[] h : historyTable) {
+            java.util.Arrays.fill(h, 0);
+        }
+        lastCompletedDepth = 0;
+        lastBestScore = 0;
+    }
+
+    /** Allows a new search to run after requestStop(). Call it BEFORE checking whether the search is still wanted. */
+    public static void clearStop() { stopRequested = false; }
+
+    /** Searches the current position. Does NOT clear a pending stop request (see clearStop). */
+    public static SearchResult search(long timeLimitMs) {
+        Move best = findBestMove(timeLimitMs);
+        return new SearchResult(best, lastBestScore, lastCompletedDepth, nodes);
+    }
 
     // Add fields in MovesGenerator.java
 private static final Move[][] killerMoves = new Move[MAX_DEPTH][2];
@@ -162,6 +189,14 @@ private static int scoreMove(Move m, int depth) {
         if (depth == 0) return quiesce(alpha, beta, 0);
 
         boolean maximizing = MovementManager.INSTANCE.turn;
+
+        // NULL-MOVE PRUNING (minimax version: scores are always from White's point of view).
+        // "If I could skip my turn and still be too good, the opponent will never allow this position."
+        // Done BEFORE searching the real moves, so a cutoff really saves the work.
+        if (depth >= 3 && nullMoveAllowed(maximizing)) {
+            int nullCut = nullMoveSearch(depth, alpha, beta, maximizing);
+            if (nullCut != NO_CUTOFF) return nullCut;
+        }
         List<Move> candidates = maximizing ? generateWhiteMoves() : generateBlackMoves();
         if (candidates.isEmpty()) return EvaluationFuncion.Evaluate();
 
@@ -209,34 +244,67 @@ private static int scoreMove(Move m, int depth) {
         
         TranspositionTable.store(key, depth, best, flag, bestMove);
 
-        MovementManager mm = MovementManager.INSTANCE;
-        boolean inCheck = maximizing ? mm.whiteIsInCheck : mm.blackIsInCheck;
-
-        // NULL-MOVE PRUNING
-        int R = 2; // Reduction depth
-        if (!inCheck && depth >= 3 && best != Integer.MIN_VALUE && best != Integer.MAX_VALUE) {
-            // Make a null move by toggling the turn
-            Board.State bs = Board.captureState();
-            MovementManager.State ms = mm.captureState();
-            
-            mm.turn = !mm.turn;
-            int nullScore;
-            try {
-                nullScore = -shearch(depth - 1 - R, -beta, -beta + 1);
-            } finally {
-                mm.resetState(ms);
-                Board.resetState(bs);
-            }
-            
-            if (nullScore >= beta) {
-                return beta; // Beta cutoff via null move!
-            }
-        }
-
         return best;
     }
 
-        /**
+    private static final int NULL_MOVE_R = 2;
+    private static final int NO_CUTOFF = Integer.MIN_VALUE + 1;
+
+    /** Not in check, not in a pure king+pawn ending (zugzwang danger), and the window is a real one. */
+    private static boolean nullMoveAllowed(boolean white) {
+        MovementManager mm = MovementManager.INSTANCE;
+        if (mm.gameFinished) return false;
+        if (white ? mm.whiteIsInCheck : mm.blackIsInCheck) return false;
+        long pieces = white
+                ? (Board.whiteKnights | Board.whiteBishops | Board.whiteRoocks | Board.whiteQueen)
+                : (Board.blackKnights | Board.blackBishops | Board.blackRoocks | Board.blackQueen);
+        return pieces != 0L;
+    }
+
+    /**
+     * Lets the side to move "pass", searches the opponent's reply with reduced depth and a zero window.
+     * Returns beta (White node) / alpha (Black node) on a cutoff, otherwise NO_CUTOFF.
+     */
+    private static int nullMoveSearch(int depth, int alpha, int beta, boolean maximizing) {
+        MovementManager mm = MovementManager.INSTANCE;
+        // Zero window needs room on both sides (avoid int overflow with the "infinite" bounds).
+        if (maximizing && (beta == Integer.MIN_VALUE || beta == Integer.MAX_VALUE)) return NO_CUTOFF;
+        if (!maximizing && (alpha == Integer.MIN_VALUE || alpha == Integer.MAX_VALUE)) return NO_CUTOFF;
+
+        Board.State bs = Board.captureState();
+        MovementManager.State ms = mm.captureState();
+        try {
+            // Pass: the other side moves now. Its pins / checks must be computed for IT,
+            // otherwise its moves are generated with the passing side's data.
+            mm.turn = !mm.turn;
+            Board.atackSquares = 0L;
+            Board.captureSquares = 0L;
+            Board.checkSquares = 0L;
+            Board.kingCheckSquares = 0L;
+            mm.updateWhiteBoard();
+            mm.updateBlackBoard();
+            mm.updateBoard();
+            if (mm.turn) {
+                mm.checkWhiteCheck(mm.whiteKingPos);
+            } else {
+                mm.checkBlackCheck(mm.blackKingPos);
+            }
+
+            if (maximizing) {
+                int score = shearch(depth - 1 - NULL_MOVE_R, beta - 1, beta);
+                if (score >= beta) return beta;      // White is still too good even after passing
+            } else {
+                int score = shearch(depth - 1 - NULL_MOVE_R, alpha, alpha + 1);
+                if (score <= alpha) return alpha;    // Black is still too good even after passing
+            }
+            return NO_CUTOFF;
+        } finally {
+            mm.resetState(ms);
+            Board.resetState(bs);
+        }
+    }
+
+    /**
      * Quiescence search: at the end of the normal search, keep searching captures
      * (and promotions) until the position is "quiet", so the engine never evaluates
      * in the middle of an exchange.
@@ -396,6 +464,7 @@ private static int scoreMove(Move m, int depth) {
         boolean wasSearching = isSearching;
         isSearching = true;
         try {
+            stopRequested = false;
             return findBestMove(TIME_LIMIT_MS);
         } finally {
             isSearching = wasSearching;
@@ -407,8 +476,9 @@ private static int scoreMove(Move m, int depth) {
         isSearching = true;
         try {
             deadline = System.nanoTime() + timeLimitMs * 1_000_000L;
-            stopRequested = false;
             nodes = 0;
+            lastCompletedDepth = 0;
+            lastBestScore = 0;
 
             boolean maximizing = MovementManager.INSTANCE.turn;
             List<Move> candidates = maximizing ? generateWhiteMoves() : generateBlackMoves();
@@ -441,6 +511,7 @@ private static int scoreMove(Move m, int depth) {
                     bestScore = score;
                     bestSoFar = candidates.get(0);
                     lastCompletedDepth = depth;
+                    lastBestScore = score;
                     
                 } catch (TimeUp e) {
                     break;
