@@ -1,0 +1,9 @@
+com.example.chesslib-pngs-0 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\build\generated\res\pngs\debug
+com.example.chesslib-updated_navigation_xml-1 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\build\generated\updated_navigation_xml\debug
+com.example.chesslib-mergeDebugResources-2 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\build\intermediates\incremental\debug\mergeDebugResources\merged.dir
+com.example.chesslib-mergeDebugResources-3 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\build\intermediates\incremental\debug\mergeDebugResources\stripped.dir
+com.example.chesslib-debug-4 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\build\intermediates\merged_res\debug\mergeDebugResources
+com.example.chesslib-debug-5 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\build\intermediates\packaged_res\debug\packageDebugResources
+com.example.chesslib-debug-6 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\src\debug\res
+com.example.chesslib-main-7 C:\Users\accdi\AndroidStudioProjects\ChessApplication\chesslib\src\main\res
+gradleHome-0 C:\Users\accdi\.gradle
